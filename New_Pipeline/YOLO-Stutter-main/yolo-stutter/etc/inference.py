@@ -204,7 +204,7 @@ def single_inference(hps, wav_path, ref_text, downsample_factor, decoder, device
 
 if __name__ == "__main__":
 
-    device = torch.device("cuda:5")
+    device = torch.device("cpu")
 
     text_channels = 768
     kernel_size= 3
