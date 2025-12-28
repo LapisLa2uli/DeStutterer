@@ -1,2 +1,4 @@
 New_Pipeline/Datasets/
-New_Pipeline/YOLO-Stutter-main/yolo-stutter/saved_models
+New_Pipeline/YOLOStutter/yolo-stutter/saved_models
+New_Pipeline/Stammer3_env
+New_Pipeline/YOLOStutter/yolo-stutter/vctk-tts
