@@ -166,11 +166,9 @@ def get_soft_attention(hps, net_g, text, text_lengths, spec, spec_lengths):
         text_lengths = text_lengths.to(device).long()
         spec = spec.to(device).float()
         spec_lengths = spec_lengths.to(device).long()
-        print('a')
         # clamp spec to [-1,1] to avoid infs
         spec = spec.clamp(-1.0, 1.0)
         spec = torch.nan_to_num(spec, nan=0.0, posinf=0.0, neginf=0.0)
-        print('b')
         # Minimum spectrogram frames expected by VITS
         segment_size = hps.train.segment_size // hps.data.hop_length
         if spec.shape[-1] < segment_size:
@@ -187,7 +185,7 @@ def get_soft_attention(hps, net_g, text, text_lengths, spec, spec_lengths):
         text_lengths = text_lengths.to(device)
         spec = spec.to(device)
         spec_lengths = spec_lengths.to(device)
-
+        print(text.shape,text_lengths,spec.shape,spec_lengths)
         # Catch any errors in net_g
         try:
             o, l_length, (neg_cent, attn), ids_slice, x_mask, y_mask, \
@@ -195,7 +193,6 @@ def get_soft_attention(hps, net_g, text, text_lengths, spec, spec_lengths):
         except Exception as e:
             print(f"Skipping chunk: net_g failed with error {e}")
             return None
-        print('c')
         neg_cent = nn.functional.softmax(neg_cent, dim=-1)
 
     return neg_cent
@@ -207,12 +204,10 @@ def single_inference(hps, wav_path, ref_text, downsample_factor, decoder, device
 
     spec, wav = get_audio_a(wav_path)  # [1, d, t]
     spec_length = torch.tensor(spec.shape[-1])
-    print('a')
     text = text.unsqueeze(0)
     spec = spec.unsqueeze(0)
     text_length = text_length.unsqueeze(0)
     spec_length = spec_length.unsqueeze(0)
-    print('c')
     # print("text: ", text.shape) # [1, U]
     # print("spec: ", spec.shape) # [1, 513, T]
     # print(text_length)
@@ -224,13 +219,10 @@ def single_inference(hps, wav_path, ref_text, downsample_factor, decoder, device
     text_length = text_length.to(device)
     spec = spec.to(device)
     spec_length = spec_length.to(device)
-    print('d')
     soft_attention = get_soft_attention(
         hps, net_g, text, text_length, spec, spec_length
     )
-    print('e')
     orig_text_dim_shape = soft_attention.shape[-1]
-    print('b')
     new_soft_attention = nn.functional.pad(
         soft_attention,
         (
