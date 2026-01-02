@@ -47,7 +47,12 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 device = torch.device("cpu")
 decoder = torch.load("../saved_models/decoder_tts_joint", map_location=device)
-
+def print_full_tensor(tensor):
+    """
+    Print the entire content of a PyTorch tensor, regardless of shape.
+    """
+    torch.set_printoptions(threshold=float('inf'))
+    print(tensor)
 def get_text(text, hps):
     text_norm = text_to_sequence(text, hps.data.text_cleaners)
     if hps.data.add_blank:
@@ -115,7 +120,7 @@ def get_audio_a(filename):
 def get_labels(path):
     with open(path, "r") as f:
         labels = json.load(f)
-    
+
     phonemes = labels[0]["phonemes"]
     text_path = path.replace("disfluent_labels", "gt_text")
     last = text_path.rfind('_')
@@ -127,14 +132,14 @@ def get_labels(path):
 
     for w in phonemes:
         w["start"] = int(w["start"] / 0.016)
-        w["end"] = int(w["end"] / 0.016) 
-    
+        w["end"] = int(w["end"] / 0.016)
+
     return phonemes, text
 
 def get_audio(path):
     spec, wav = get_audio_a(path) #[spec is 1, d, t]
 
-    return spec, wav 
+    return spec, wav
 
 def process_audio(spec, wav, _text):
 
@@ -143,10 +148,10 @@ def process_audio(spec, wav, _text):
     # stn_tst = get_text("I miss you", hps)
     x_tst = stn_tst.unsqueeze(0)
     x_tst_lengths = torch.LongTensor([stn_tst.size(0)])
-    
+
     y = spec.unsqueeze(0)
     y_lengths = torch.LongTensor([y.shape[-1]])
-    t = net_g(x_tst, x_tst_lengths, y, y_lengths) 
+    t = net_g(x_tst, x_tst_lengths, y, y_lengths)
     # print(len(t[2]))
     o, l_length, (neg_cent, attn), ids_slice, x_mask, y_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = net_g(x_tst, x_tst_lengths, y, y_lengths) #phoneme, mel_spec respectively
 
@@ -161,38 +166,12 @@ def process_audio(spec, wav, _text):
 
 def get_soft_attention(hps, net_g, text, text_lengths, spec, spec_lengths):
     with torch.no_grad():
-        # Ensure all inputs are float/int and on correct device
-        text = text.to(device).long()
-        text_lengths = text_lengths.to(device).long()
-        spec = spec.to(device).float()
-        spec_lengths = spec_lengths.to(device).long()
-        # clamp spec to [-1,1] to avoid infs
-        spec = spec.clamp(-1.0, 1.0)
-        spec = torch.nan_to_num(spec, nan=0.0, posinf=0.0, neginf=0.0)
-        # Minimum spectrogram frames expected by VITS
-        segment_size = hps.train.segment_size // hps.data.hop_length
-        if spec.shape[-1] < segment_size:
-            spec = F.pad(spec, (0, segment_size - spec.shape[-1]), "constant", 0.0)
+        print(text.shape, text_lengths.shape, spec.shape, spec_lengths.shape)
+        o, l_length, (neg_cent, attn), ids_slice, x_mask, y_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = net_g(text,
+                                                                                                             text_lengths,
+                                                                                                             spec,
+                                                                                                             spec_lengths)  # phoneme, mel_spec respectively
 
-        # Make sure batch dimensions are correct
-        text = text.unsqueeze(0)  # [1, U]
-        text_lengths = text_lengths.unsqueeze(0)
-        spec = spec.unsqueeze(0)  # [1, n_mel_channels, T]
-        spec_lengths = spec_lengths.unsqueeze(0)
-
-        # Send to device
-        text = text.to(device)
-        text_lengths = text_lengths.to(device)
-        spec = spec.to(device)
-        spec_lengths = spec_lengths.to(device)
-        print(text.shape,text_lengths,spec.shape,spec_lengths)
-        # Catch any errors in net_g
-        try:
-            o, l_length, (neg_cent, attn), ids_slice, x_mask, y_mask, \
-                (z, z_p, m_p, logs_p, m_q, logs_q) = net_g(text, text_lengths, spec, spec_lengths)
-        except Exception as e:
-            print(f"Skipping chunk: net_g failed with error {e}")
-            return None
         neg_cent = nn.functional.softmax(neg_cent, dim=-1)
 
     return neg_cent
@@ -204,10 +183,12 @@ def single_inference(hps, wav_path, ref_text, downsample_factor, decoder, device
 
     spec, wav = get_audio_a(wav_path)  # [1, d, t]
     spec_length = torch.tensor(spec.shape[-1])
+
     text = text.unsqueeze(0)
     spec = spec.unsqueeze(0)
     text_length = text_length.unsqueeze(0)
     spec_length = spec_length.unsqueeze(0)
+
     # print("text: ", text.shape) # [1, U]
     # print("spec: ", spec.shape) # [1, 513, T]
     # print(text_length)
@@ -219,10 +200,13 @@ def single_inference(hps, wav_path, ref_text, downsample_factor, decoder, device
     text_length = text_length.to(device)
     spec = spec.to(device)
     spec_length = spec_length.to(device)
+
     soft_attention = get_soft_attention(
         hps, net_g, text, text_length, spec, spec_length
     )
+
     orig_text_dim_shape = soft_attention.shape[-1]
+
     new_soft_attention = nn.functional.pad(
         soft_attention,
         (
@@ -255,16 +239,16 @@ def Inference(ref_text,wav_path):
 
 
 
-    
+
     labels = ["rep", "block", "missing", "replace", "prolong"]
 
     net_g = net_g.to(device)
 
     #ref_text = "Please call Stella."
     #wav_path = "samples/p001_001_rep.wav"
-    
-    output = single_inference(hps, wav_path, ref_text, downsample_factor, decoder, device)
 
+    output = single_inference(hps, wav_path, ref_text, downsample_factor, decoder, device)
+    print_full_tensor(output)
     '''disfluency_type_pred = output[:, :, 3:]
     
     type_pred_softmax = torch.log_softmax(disfluency_type_pred, dim=-1)
@@ -283,13 +267,15 @@ def Inference(ref_text,wav_path):
     disfluency_bound_pred = output[:, :, :2].squeeze(0)  # [num_regions, 2]
     disfluency_type_pred = output[:, :, 3:]  # [1, num_regions, num_classes]
     type_pred_softmax = torch.softmax(disfluency_type_pred, dim=-1).squeeze(0)  # [num_regions, num_classes]
+    print('type_pred_softmax')
+    print_full_tensor(type_pred_softmax)
     conf, y_pred_labels = torch.max(type_pred_softmax, dim=-1)  # [num_regions]
-
+    print(conf)
     # Convert time units
     time_scale = 1024 * 256 / 22050
 
     # Confidence threshold (tune this)
-    conf_thresh = 0.5
+    conf_thresh = 0.9
 
     results = []
     for i in range(disfluency_bound_pred.shape[0]):
