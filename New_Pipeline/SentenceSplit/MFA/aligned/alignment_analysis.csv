@@ -1,0 +1,2 @@
+file,begin,end,speaker,overall_log_likelihood,speech_log_likelihood,phone_duration_deviation,snr
+sample,0.0,69.14902494331066,corpus,-49.92290310918293,,,17.03778492278179

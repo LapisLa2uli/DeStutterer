@@ -42,6 +42,8 @@ numba_logger.setLevel(logging.INFO)
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
+if "D:\\stuff\\StutterProject\\New_Pipeline\\YOLOStutter\\yolo-stutter\\etc\\old_inference.py" not in sys.path:
+    sys.path.insert(0,"D:\\stuff\\StutterProject\\New_Pipeline\\YOLOStutter\\yolo-stutter\\etc\\old_inference.py")
 
 def print_full_tensor(tensor):
     """
@@ -61,7 +63,7 @@ def get_sample_rate_wave(audio_file_path):
     with wave.open(audio_file_path, 'rb') as wf:
         return wf.getframerate()
 
-
+print(sys.path)
 hps = utils.get_hparams_from_file("../utils/vits/configs/ljs_base.json")
 net_g = SynthesizerTrn(
     len(symbols),
